@@ -4,7 +4,7 @@ import torchvision
 import torch.nn as nn
 import torchvision.models.vgg
 
-def load_vgg16(device: torch.device, n: int=10) -> torchvision.models.vgg.VGG16:
+def load_vgg16(device: torch.device, n: int=10) -> torchvision.models.vgg.VGG:
     """load pretrained VGG16 net for n classes
 
     Args:

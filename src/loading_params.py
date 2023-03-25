@@ -49,7 +49,7 @@ def generate_indices(n : int = 5, path : str | Path="", dataset: torch.utils.dat
     
 def load_indices(path: str | Path="", n : int = 5, dataset: torch.utils.data.Dataset | None = None,
                  valid_n: int | float=12.5) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """load the generated training and validation indices
+    """Load the generated training and validation indices
 
     Args:
         path (str | Path, optional): path where resulting files are stored. Defaults to "".
@@ -64,19 +64,24 @@ def load_indices(path: str | Path="", n : int = 5, dataset: torch.utils.data.Dat
     val_idx_df = pd.read_csv(f"{path}val_idx.csv")
     return train_idx_df, val_idx_df
 
-def generate_base_dicts(model, optimizer, scheduler, initial_dict, optim_dict, sched_dict):
+def generate_base_dicts(model, optimizer, scheduler, path: str | Path=""):
     initial_dict = copy.deepcopy(model.state_dict())
     optim_dict = copy.deepcopy(optimizer.state_dict())
     sched_dict = copy.deepcopy(scheduler.state_dict())
 
-    torch.save(initial_dict, "model_dict.pt")
-    torch.save(optim_dict, "optimizer_dict.pt")
-    torch.save(sched_dict, "scheduler_dict.pt")
+    torch.save(initial_dict, f"{path}model_dict.pt")
+    torch.save(optim_dict, f"{path}optimizer_dict.pt")
+    torch.save(sched_dict, f"{path}scheduler_dict.pt")
 
-def load_base_dicts():
-    initial_dict =torch.load("model_dict.pt")
-    optim_dict = torch.load("optimizer_dict.pt")
-    sched_dict = torch.load("scheduler_dict.pt")
+def load_base_dicts(model, optimizer, scheduler, path: str | Path=""):
+    exist = (os.path.exists(f"{path}model_dict.pt") and 
+             os.path.exists(f"{path}optimizer_dict.pt") and 
+             os.path.exists(f"{path}scheduler_dict.pt"))
+    if not exist:
+        generate_base_dicts(model, optimizer, scheduler, path)
+    initial_dict = torch.load(f"{path}model_dict.pt")
+    optim_dict = torch.load(f"{path}optimizer_dict.pt")
+    sched_dict = torch.load(f"{path}scheduler_dict.pt")
     return initial_dict, optim_dict, sched_dict
 
 def use_base_dicts(model, optimizer, scheduler, initial_dict, optim_dict, sched_dict):
@@ -85,4 +90,3 @@ def use_base_dicts(model, optimizer, scheduler, initial_dict, optim_dict, sched_
     scheduler.load_state_dict(sched_dict)
     return model, optimizer, scheduler
 
-#TODO: add path variable and check if files exist like for indices

@@ -1,11 +1,6 @@
 import torch
 from validating import validate
 
-def load_base_dicts(model, optimizer, scheduler, initial_dict, optim_dict, sched_dict):
-    model.load_state_dict(initial_dict)
-    optimizer.load_state_dict(optim_dict)
-    scheduler.load_state_dict(sched_dict)
-    return model, optimizer, scheduler
 
 def train(model, device, optimizer, scheduler, loss_module, sub_epochs, epoch_loader, val_loader):
     for sub_epoch in range(sub_epochs):

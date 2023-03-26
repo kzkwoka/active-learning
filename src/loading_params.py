@@ -15,7 +15,7 @@ def get_train_val(trainset: torch.utils.data.Dataset, valid_n: int | float=12.5)
     Returns:
         tuple[List[int], List[int]]: list of training and validation indices
     """     
-    valid_n = valid_n/10
+    valid_n = valid_n/100
     rand_sampler = torch.utils.data.RandomSampler(trainset, replacement=False)
     batch_sampler = torch.utils.data.BatchSampler(rand_sampler,
                                                        batch_size=int(valid_n*len(trainset)),

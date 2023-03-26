@@ -14,9 +14,10 @@ def run():
     optimizer, loss_module, scheduler = load_modules(net.parameters())
     initial_dict, optim_dict, sched_dict = load_base_dicts(net, optimizer, scheduler, param_path)
     
-    run_learning(net, device, optimizer, scheduler, loss_module,
+    df = run_learning(net, device, optimizer, scheduler, loss_module,
                    trainset, train_idx_df, val_idx_df, testset, 
-                   initial_dict, optim_dict, sched_dict, epochs=5, sub_epochs = 20)
+                   initial_dict, optim_dict, sched_dict, epochs=2, sub_epochs = 3)
+    df.to_csv(f"results/vgg16_cifar.csv")
 
 if __name__ == "__main__":
     run() 

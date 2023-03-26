@@ -28,6 +28,8 @@ def load_vgg16(device: torch.device, n: int=10) -> torchvision.models.vgg.VGG:
     vgg16.to(device)
     return vgg16
 
+#TODO: add more models
+
 def load_modules(params):
     optimizer = torch.optim.Adam(params)
     loss_module = nn.CrossEntropyLoss()

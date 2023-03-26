@@ -1,4 +1,9 @@
 data/
 kloka_inz/
+notebooks/
+
 params/
 .vscode/
+*/__pychache__/
+src/__pycache__/
+

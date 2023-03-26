@@ -53,6 +53,9 @@ def load_indices(path: str | Path="", n : int = 5, dataset: torch.utils.data.Dat
 
     Args:
         path (str | Path, optional): path where resulting files are stored. Defaults to "".
+        n (int, optional): n fold generation of train-validation split. Defaults to 5.
+        dataset (torch.utils.data.Dataset | None, optional): dataset from which the folds will be created. Defaults to None.
+        valid_n (int | float): percentage of training data to be placed in validation. Defaults to 12.5.
 
     Returns:
         tuple[pd.DataFrame, pd.DataFrame]: dataframes with the training and validation indices

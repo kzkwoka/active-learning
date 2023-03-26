@@ -1,5 +1,7 @@
 import torch
 import pandas as pd
+import numpy as np
+from heuristics import generate_heuristic_sample
 from loading_params import use_base_dicts
 from validating import validate
 
@@ -93,24 +95,26 @@ def make_rows(dset, epoch, loss, acc):
             temp.append(row)
     return temp
     
-def active_learn(model, train_data, train_idx, val_idx, heuristic, initial_train_idx, experiment_id):
-    model.load_state_dict(initial_dict)
-    optimizer.load_state_dict(optim_dict)
-    batch_len = int(0.05*len(train_idx)) # calculate length of 5% of training data
+def active_learn(model, device, optimizer, scheduler, loss_module,
+                 train_data, train_idx, val_idx, test_loader,
+                 initial_train_idx, experiment_id,
+                 initial_dict, optim_dict, sched_dict, sub_epochs = 20,
+                 heuristic=None, n_batches=20):
+    #TODO: configure active learning
+    model, optimizer, scheduler = use_base_dicts(model, optimizer, scheduler, initial_dict, optim_dict, sched_dict)
+    batch_len = int((1./n_batches)*len(train_idx)) # calculate length of 5% of training data
     val_loader = torch.utils.data.DataLoader(
         torch.utils.data.Subset(train_data, val_idx),
         batch_size=64,
         num_workers=8)
     validation_loss, validation_acc = [], []
     train_loss, train_acc = [], []
-    for epoch in range(20):
+    for epoch in range(n_batches):
         print("Epoch: ", epoch)
-    
         if epoch == 0:
         # if False:
             # batch_idx, train_idx = generate_random_sample(train_idx, batch_len) # equivalent to first (labeled) dataset
             batch_idx = initial_train_idx
-            sub_epochs = 20
         else:
             for group in optimizer.param_groups:
                 group['lr'] = 0.001
@@ -118,37 +122,12 @@ def active_learn(model, train_data, train_idx, val_idx, heuristic, initial_train
             batch_idx, train_idx = generate_heuristic_sample(train_idx, batch_len, model, heuristic, train_data) # equivalent to asking for labelling
             # consider joining the samples
             batch_idx = np.append(old_idx,batch_idx)
-            sub_epochs = 20
         print(f"Training on {len(batch_idx)} samples")
         
-        # model.load_state_dict(initial_dict)
-        # optimizer.load_state_dict(optim_dict)
-        # print(model.state_dict(['conv1.weight'])[0])
-        model.train()  # turn on training mode
         epoch_subset =  torch.utils.data.Subset(train_data, batch_idx) # get epoch subset 
         epoch_loader =  torch.utils.data.DataLoader(epoch_subset, batch_size=64, num_workers=8, shuffle=True) # convert into loader
         # consider retraining multiple times
-        for sub_epoch in range(sub_epochs):
-            total = 0   # total n of samples seen
-            correct = 0   # total n of coreectly classified samples
-            running_loss = 0.0
-            for i, data in enumerate(epoch_loader):
-                data, target = data[0].to(device), data[1].to(device)
-                optimizer.zero_grad()  # zero out the gradients
-                output = model(data)  # get the output of the net
-                loss = loss_module(output, target)  # calculate the loss 
-                running_loss += loss.item()  # add the loss on the subset batch
-                _, preds = torch.max(output.data, 1)  # get the predictions
-                correct += (preds == target).sum().item() # add the n of correctly classified samples
-                total += target.size(0) # add the total of samples seen
-                loss.backward()  # backpropagate the weights
-                optimizer.step()  # optimize
-                del data, target, output, preds
-            t_loss = running_loss/total
-            t_acc = 100. * correct/total
-            val_loss, val_acc = validate(model, val_loader)
-            print(f"Sub epoch {sub_epoch} train acc: {t_acc:.2f} train loss: {t_loss:.4f} val acc: {val_acc:.2f} val loss: {val_loss:.4f}")
-            scheduler.step(val_loss)
+        t_loss, t_acc, val_loss, val_acc = train(model, device, optimizer, scheduler, loss_module, sub_epochs, epoch_loader, val_loader)
             
         train_loss.append(t_loss)
         train_acc.append(t_acc)
@@ -159,8 +138,8 @@ def active_learn(model, train_data, train_idx, val_idx, heuristic, initial_train
 
         print(f"Train Loss: {t_loss:.4f}, Train Acc: {t_acc:.2f} ",
           f"Validation Loss: {val_loss:.4f}, Validation Acc: {val_acc:.2f}")
-        # if heuristic is not None:
-        #     torch.save(model.state_dict(), f'{experiment_id}/epoch{epoch}_{heuristic.__name__}.pt')
-        # else:
-        #     torch.save(model.state_dict(), f'{experiment_id}/epoch{epoch}_random.pt')
+        if heuristic is not None:
+            torch.save(model.state_dict(), f'{experiment_id}/epoch{epoch}_{heuristic.__name__}.pt')
+        else:
+            torch.save(model.state_dict(), f'{experiment_id}/epoch{epoch}_random.pt')
     return train_loss, train_acc, validation_loss, validation_acc

@@ -18,6 +18,12 @@ def run():
                    trainset, train_idx_df, val_idx_df, testset, 
                    initial_dict, optim_dict, sched_dict, epochs=2, sub_epochs = 3)
     df.to_csv(f"results/vgg16_cifar.csv")
+#TODO: run all experiments
+#TODO: transform dataset
 
 if __name__ == "__main__":
     run() 
+    
+
+
+

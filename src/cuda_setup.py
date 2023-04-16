@@ -1,11 +1,13 @@
 import torch
+import logging as log
 
 def load_device():
     if torch.cuda.is_available():
         device = torch.device("cuda") 
     else:
         device = torch.device("cpu")
-    print(device)
+    # print(device)
+    log.info(f"Using {device}")
     return device
 
 def set_seeds():

@@ -1,12 +1,18 @@
 import torch
 import pandas as pd
 import numpy as np
+import logging as log
 from heuristics import generate_heuristic_sample
 from loading_params import use_base_dicts
 from validating import validate
 
+TRAIN_BATCH_SIZE = 128
+VALID_BATCH_SIZE = 256
+TEST_BATCH_SIZE = 256
 
-def train(model, device, optimizer, scheduler, loss_module, sub_epochs, epoch_loader, val_loader):
+def train(model, device, optimizer, scheduler, loss_module, sub_epochs, epoch_loader, val_loader, experiment_id):
+    best_acc = 0
+    
     for sub_epoch in range(sub_epochs):
         model.train()  # turn on training mode
         total = 0   # total n of samples seen
@@ -27,28 +33,32 @@ def train(model, device, optimizer, scheduler, loss_module, sub_epochs, epoch_lo
         t_loss = running_loss/total
         t_acc = 100. * correct/total
         val_loss, val_acc = validate(model, device, val_loader, loss_module)
-        print(f"Sub epoch {sub_epoch} train acc: {t_acc:.2f} train loss: {t_loss:.4f} val acc: {val_acc:.2f} val loss: {val_loss:.4f}")
+        log.info(f"Sub epoch {sub_epoch} train acc: {t_acc:.2f} train loss: {t_loss:.4f} val acc: {val_acc:.2f} val loss: {val_loss:.4f}")
         scheduler.step(val_loss)
+        if val_acc > best_acc:
+            log.info(f"Saving best model with val_acc: {val_acc}")
+            torch.save(model.state_dict(), f'logs/{experiment_id}_best_base.pt')
+            best_acc = val_acc
     return t_loss, t_acc, val_loss, val_acc
 
 def base_learn(model, device, optimizer, scheduler, loss_module,
                train_data, train_idx, val_idx, test_loader, 
-               initial_dict, optim_dict, sched_dict, sub_epochs = 20):
+               initial_dict, optim_dict, sched_dict, sub_epochs = 20, experiment_id=0):
     model, optimizer, scheduler = use_base_dicts(model, optimizer, scheduler, initial_dict, optim_dict, sched_dict)
     val_loader = torch.utils.data.DataLoader(
         torch.utils.data.Subset(train_data, val_idx),
-        batch_size=64,
-        num_workers=8)
+        batch_size=VALID_BATCH_SIZE,
+        num_workers=4)
     validation_loss, validation_acc = [], []
     train_loss, train_acc = [], []
     test_loss, test_acc = [], []
     batch_idx = train_idx
-    print(f"Training on {len(batch_idx)} samples")
+    log.info(f"Training on {len(batch_idx)} samples")
     
     epoch_subset =  torch.utils.data.Subset(train_data, batch_idx) # get epoch subset 
-    epoch_loader =  torch.utils.data.DataLoader(epoch_subset, batch_size=64, num_workers=8, shuffle=True) # convert into loader
+    epoch_loader =  torch.utils.data.DataLoader(epoch_subset, batch_size=TRAIN_BATCH_SIZE, num_workers=4, shuffle=True) # convert into loader
     # consider retraining multiple times
-    t_loss, t_acc, val_loss, val_acc = train(model, device, optimizer, scheduler, loss_module, sub_epochs, epoch_loader, val_loader)
+    t_loss, t_acc, val_loss, val_acc = train(model, device, optimizer, scheduler, loss_module, sub_epochs, epoch_loader, val_loader, experiment_id)
 
     train_loss.append(t_loss)
     train_acc.append(t_acc)
@@ -60,8 +70,7 @@ def base_learn(model, device, optimizer, scheduler, loss_module,
     test_loss.append(ts_loss)
     test_acc.append(ts_acc)
 
-    print(f"Train Loss: {t_loss:.4f}, Train Acc: {t_acc:.2f} ",
-      f"Validation Loss: {val_loss:.4f}, Validation Acc: {val_acc:.2f}")
+    log.info(f"Train Loss: {t_loss:.4f}, Train Acc: {t_acc:.2f},  Validation Loss: {val_loss:.4f}, Validation Acc: {val_acc:.2f}")
     return train_loss, train_acc, validation_loss, validation_acc, test_loss, test_acc
 
 def run_learning(net, device, optimizer, scheduler, loss_module,
@@ -70,8 +79,8 @@ def run_learning(net, device, optimizer, scheduler, loss_module,
 
     test_loader = torch.utils.data.DataLoader(
         testset,
-        batch_size=64,
-        num_workers=8)
+        batch_size=TEST_BATCH_SIZE,
+        num_workers=4)
     result = []
     
     for i in range(epochs):
@@ -79,7 +88,7 @@ def run_learning(net, device, optimizer, scheduler, loss_module,
         train_loss, train_acc, validation_loss, validation_acc, test_loss, test_acc = \
             base_learn(net, device, optimizer, scheduler, loss_module, trainset,
                        train_idx_df[i].to_list(), val_idx_df[i].to_list(), test_loader,
-                       initial_dict, optim_dict, sched_dict, sub_epochs)
+                       initial_dict, optim_dict, sched_dict, sub_epochs, i)
         result.extend(make_rows("train", i, train_loss, train_acc))
         result.extend(make_rows("val", i, validation_loss, validation_acc))
         result.extend(make_rows("test", i, test_loss, test_acc))
@@ -105,8 +114,8 @@ def active_learn(model, device, optimizer, scheduler, loss_module,
     batch_len = int((1./n_batches)*len(train_idx)) # calculate length of 5% of training data
     val_loader = torch.utils.data.DataLoader(
         torch.utils.data.Subset(train_data, val_idx),
-        batch_size=64,
-        num_workers=8)
+        batch_size=VALID_BATCH_SIZE,
+        num_workers=4)
     validation_loss, validation_acc = [], []
     train_loss, train_acc = [], []
     for epoch in range(n_batches):
@@ -125,7 +134,7 @@ def active_learn(model, device, optimizer, scheduler, loss_module,
         print(f"Training on {len(batch_idx)} samples")
         
         epoch_subset =  torch.utils.data.Subset(train_data, batch_idx) # get epoch subset 
-        epoch_loader =  torch.utils.data.DataLoader(epoch_subset, batch_size=64, num_workers=8, shuffle=True) # convert into loader
+        epoch_loader =  torch.utils.data.DataLoader(epoch_subset, batch_size=TRAIN_BATCH_SIZE, num_workers=4, shuffle=True) # convert into loader
         # consider retraining multiple times
         t_loss, t_acc, val_loss, val_acc = train(model, device, optimizer, scheduler, loss_module, sub_epochs, epoch_loader, val_loader)
             

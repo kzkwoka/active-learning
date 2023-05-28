@@ -70,8 +70,7 @@ def load_effnet_v2s(device: torch.device, n: int=10) -> torchvision.models.vgg.V
 def load_modules(params):
     optimizer = torch.optim.Adam(params)
     log.info(f"Loaded optimizer ADAM with default parameters")
-    loss_module = nn.CrossEntropyLoss()
-    log.info(f"Loaded Cross Entropy Loss")
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     log.info(f"Loaded LR scheduler")
-    return optimizer, loss_module, scheduler
+    return optimizer, scheduler

@@ -5,7 +5,9 @@ import logging as log
 from heuristics import generate_heuristic_sample
 from loading_params import use_base_dicts
 from utils import create_weighted_sampler, make_rows
-from validating import get_acc_per_class, validate
+from validating import get_acc_per_class, get_evaluation_metrics, validate
+
+from torcheval.metrics.functional import multiclass_accuracy, multiclass_f1_score
 
 TRAIN_BATCH_SIZE = 64
 VALID_BATCH_SIZE = 128
@@ -19,7 +21,7 @@ def run_learning(net, device, optimizer, scheduler,
         testset,
         batch_size=TEST_BATCH_SIZE,
         num_workers=4)
-    result = []
+    best_metrics = []
     
     for i in range(epochs):
         i = str(i)
@@ -27,17 +29,13 @@ def run_learning(net, device, optimizer, scheduler,
         if active_learning: 
             pass
         else:
-            train_loss, train_acc, validation_loss, validation_acc, test_loss, test_acc = \
+            metrics = \
             base_learn(net, device, optimizer, scheduler, trainset,
                        train_idx_df[i].to_list(), val_idx_df[i].to_list(), test_loader,
                        initial_dict, optim_dict, sched_dict, sub_epochs, i)
-        result.extend(make_rows("train", i, train_loss, train_acc))
-        result.extend(make_rows("val", i, validation_loss, validation_acc))
-        result.extend(make_rows("test", i, test_loss, test_acc))
+            best_metrics.append(metrics)
     
-    columns = ["dset", "epoch", "subepoch", "loss", "acc"]
-    df = pd.DataFrame(data=result, columns=columns)
-    return df
+    return best_metrics
 
 def base_learn(model, device, optimizer, scheduler, 
                train_data, train_idx, val_idx, test_loader, 
@@ -49,9 +47,6 @@ def base_learn(model, device, optimizer, scheduler,
         batch_size=VALID_BATCH_SIZE,
         num_workers=4)
     
-    validation_loss, validation_acc = [], []
-    train_loss, train_acc = [], []
-    test_loss, test_acc = [], []
     batch_idx = train_idx
     log.info(f"Training on {len(batch_idx)} samples")
     
@@ -63,30 +58,20 @@ def base_learn(model, device, optimizer, scheduler,
     epoch_loader =  torch.utils.data.DataLoader(epoch_subset, batch_size=TRAIN_BATCH_SIZE, 
                                                 num_workers=4, sampler=sampler) # convert into loader
     
-    t_loss, t_acc, val_loss, val_acc, ts_loss, ts_acc = train(model, device, optimizer, scheduler, loss_module, sub_epochs, 
+    metrics = train(model, device, optimizer, scheduler, loss_module, sub_epochs, 
                                                               epoch_loader, val_loader, test_loader, experiment_id)
 
-    train_loss.append(t_loss)
-    train_acc.append(t_acc)
-
-    validation_loss.append(val_loss)
-    validation_acc.append(val_acc)
-    
-    test_loss.append(ts_loss)
-    test_acc.append(ts_acc)
-
-    log.info(f"Train Loss: {t_loss}, Train Acc: {t_acc}, Validation Loss: {val_loss}, Validation Acc: {val_acc}, Test Loss: {test_loss}, Test Acc: {test_acc}")
-    return train_loss, train_acc, validation_loss, validation_acc, test_loss, test_acc
+    return metrics
 
 def train(model, device, optimizer, scheduler, loss_module, sub_epochs, 
           epoch_loader, val_loader, test_loader, experiment_id):
-    best_acc = 0
+    best_metrics = {"validation_accuracy": 0}
     
     for sub_epoch in range(sub_epochs):
         model.train()  # turn on training mode
-        total = 0   # total n of samples seen
-        correct = 0   # total n of coreectly classified samples
         running_loss = 0.0
+        all_preds = torch.Tensor()
+        all_targets = torch.Tensor()
         for _, data in enumerate(epoch_loader):
             data, target = data[0].to(device), data[1].to(device)
             optimizer.zero_grad()  # zero out the gradients
@@ -94,25 +79,21 @@ def train(model, device, optimizer, scheduler, loss_module, sub_epochs,
             loss = loss_module(output, target)  # calculate the loss 
             running_loss += loss.item()  # add the loss on the subset batch
             _, preds = torch.max(output.data, 1)  # get the predictions
-            correct += (preds == target).sum().item() # add the n of correctly classified samples
-            total += target.size(0) # add the total of samples seen
+            all_preds = torch.cat((all_preds, preds), -1)
+            all_targets = torch.cat((all_targets, target), -1)
             loss.backward()  # backpropagate the weights
             optimizer.step()  # optimize
-            del data, target, output, preds
-        #TODO: add different error metrics
-        t_loss = running_loss/total
-        t_acc = 100. * correct/total
-        val_loss, val_acc = validate(model, device, val_loader, loss_module)
-        ts_loss, ts_acc = validate(model, device, test_loader, loss_module)
-        log.info(f"Sub epoch {sub_epoch} train acc: {t_acc:.2f} train loss: {t_loss:.4f} val acc: {val_acc:.2f} val loss: {val_loss:.4f} test acc: {ts_acc:.2f} test loss: {ts_loss:.4f}")
-        
-        get_acc_per_class(model, device, test_loader, test_loader.dataset.classes)
-        # scheduler.step(val_loss)
-        if val_acc > best_acc:
-            log.info(f"Saving best model with val_acc: {val_acc}")
+        model.eval()
+        metrics = get_evaluation_metrics(model, device, val_loader, test_loader, loss_module, sub_epoch,
+                           running_loss, all_preds, all_targets)
+                 
+        scheduler.step(metrics["validation_loss"])
+        if metrics["validation_accuracy"] > best_metrics["validation_accuracy"]:
+            log.info(f"Saving best model with val_acc: {metrics['validation_accuracy']}")
             torch.save(model.state_dict(), f'logs/{experiment_id}_best_base.pt')
-            best_acc = val_acc
-    return t_loss, t_acc, val_loss, val_acc, ts_loss, ts_acc
+            best_metrics = metrics
+        
+    return metrics
     
 def active_learn(model, device, optimizer, scheduler, loss_module,
                  train_data, train_idx, val_idx, test_loader,

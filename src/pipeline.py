@@ -1,3 +1,4 @@
+import json
 import logging as log
 from cuda_setup import load_device, set_seeds
 from image_datasets import load_dataset
@@ -10,18 +11,21 @@ def run(model, dataset, epochs=5, sub_epochs=30, is_active_learning=False):
     log.info("Training started")
     device = load_device()
     set_seeds()
+    
     trainset, testset = load_dataset(dataset, model)
     train_idx_df, val_idx_df = load_indices(path=param_path, dataset=trainset)
+    
     net = load_model(model, device)
     optimizer, scheduler = load_modules(net.parameters())
     initial_dict, optim_dict, sched_dict = load_base_dicts(net, optimizer, scheduler, param_path)
     
-    df = run_learning(net, device, optimizer, scheduler, 
+    best_metrics = run_learning(net, device, optimizer, scheduler, 
                       trainset, train_idx_df, val_idx_df, testset, 
                       initial_dict, optim_dict, sched_dict, 
                       epochs=epochs, sub_epochs=sub_epochs, active_learning=is_active_learning)
     
-    df.to_csv(f"results/{model}_{dataset}_undersampled.csv")
+    with open(f"results/{model}_{dataset}_undersampled.json", "w") as f:
+        json.dump(best_metrics, f)
 
 #TODO: run all experiments
 

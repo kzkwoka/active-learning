@@ -1,46 +1,51 @@
 import torch
 import logging as log 
 
-def validate(model, device, dataloader, loss_module):
-    model.eval()
-    val_running_loss = 0.0
-    val_running_correct = 0
+from torcheval.metrics.functional import multiclass_accuracy, multiclass_f1_score
+
+def get_evaluation_metrics(model, device, validation_loader, test_loader, loss_module, sub_epoch,
+                           training_loss, training_preds, training_targets):
+    training_loss = training_loss/training_targets.size
+    training_accuracy = multiclass_accuracy(training_preds, training_targets) # global
+    training_f1_score = multiclass_f1_score(training_preds, training_targets) # global
+    
+    validation_loss, validation_accuracy, validation_f1_score = validate(model, device, validation_loader, loss_module)
+    test_loss, test_accuracy, test_f1_score, per_class_accuracy, per_class_f1_score, weighted_f1_score = validate(model, device, test_loader, loss_module, per_class=True)
+    log_str = f"Sub epoch {sub_epoch} train acc: {training_accuracy:.2f} train loss: {training_loss:.4f} train f1: {training_f1_score:.4f} "\
+                f"val acc: {validation_accuracy:.2f} val loss: {validation_loss:.4f} val f1: {validation_f1_score:.4f} "\
+                f"test acc: {test_accuracy:.2f} test loss: {test_loss:.4f} test f1: {test_f1_score:.4f}"
+    log.info(log_str)
+    for classname, accuracy, f1_score in zip(test_loader.dataset.classes, per_class_accuracy, per_class_f1_score):
+        log_str = f"Class: {classname:5s} test accuracy: {accuracy:.1f} test f1: {f1_score:.4f}"
+        log.info(log_str)
+    log.info(f"Weighted f1: {weighted_f1_score:.4f}")
+    metric_names = ["training_loss", "training_accuracy", "training_f1_score", 
+                        "validation_accuracy", "validation_loss", "validation_f1_score", 
+                        "test_accuracy", "test_loss", "test_f1_score",
+                        "per_class_accuracy", "per_class_f1_score", "weighted_f1_score"]
+    metrics = dict((name, eval(name)) for name in metric_names)
+    return metrics
+
+def validate(model, device, dataloader, loss_module, per_class=False):
+    running_loss = 0.0
+    all_preds = torch.Tensor()
+    all_targets = torch.Tensor()
     with torch.no_grad():
         for _, data in enumerate(dataloader):
             data, target = data[0].to(device), data[1].to(device)
             output = model(data)
             loss = loss_module(output, target)
-            val_running_loss += loss.item()
+            running_loss += loss.item()
             _, preds = torch.max(output.data, 1)
-            val_running_correct += (preds == target).sum().item()
-        val_loss = val_running_loss/len(dataloader.dataset)
-        val_accuracy = 100. * val_running_correct/len(dataloader.dataset)
-        # val_f1score = 
-    return val_loss, val_accuracy
-
-def get_acc_per_class(model, device, testloader, classes):
-    model.eval()
-    # prepare to count predictions for each class
-    correct_pred = {classname: 0 for classname in classes}
-    total_pred = {classname: 0 for classname in classes}
-    # again no gradients needed
-    with torch.no_grad():
-        for data in testloader:
-            images, labels = data    
-            images = images.to(device)
-            outputs = model(images).cpu()   
-            _, predictions = torch.max(outputs, 1)
-            # collect the correct predictions for each class
-            for label, prediction in zip(labels, predictions):
-                if label == prediction:
-                    correct_pred[classes[label]] += 1
-                total_pred[classes[label]] += 1
-    # print accuracy for each class
-    all_acc = []
-    for classname, correct_count in correct_pred.items():
-        accuracy = 100 * float(correct_count) / total_pred[classname]
-        all_acc.append(accuracy)
-        log.info("Accuracy for class {:5s} is: {:.1f} %".format(classname, 
-                                                       accuracy))
-    log.info(f"Average accuracy is {sum(all_acc)/len(all_acc)}")
-    return all_acc
+            all_preds = torch.cat((all_preds, preds), -1)
+            all_targets = torch.cat((all_targets, target), -1)
+        loss = running_loss/all_targets.size
+        accuracy = multiclass_accuracy(all_preds, all_targets) # global
+        f1_score = multiclass_f1_score(all_preds, all_targets) # global
+        if not per_class:
+            return loss, accuracy, f1_score
+        else:
+            accuracy_per_class = multiclass_accuracy(all_preds, all_targets, None) # per class
+            f1_score_per_class = multiclass_f1_score(all_preds, all_targets, None) # per class
+            f1_score_weighted = multiclass_accuracy(all_preds, all_targets, 'weighted') # weighted sum
+            return loss, accuracy, f1_score, accuracy_per_class, f1_score_per_class, f1_score_weighted

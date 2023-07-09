@@ -15,6 +15,7 @@ def validate(model, device, dataloader, loss_module):
             val_running_correct += (preds == target).sum().item()
         val_loss = val_running_loss/len(dataloader.dataset)
         val_accuracy = 100. * val_running_correct/len(dataloader.dataset)
+        # val_f1score = 
     return val_loss, val_accuracy
 
 def get_acc_per_class(model, device, testloader, classes):

@@ -41,8 +41,8 @@ def load_vgg16(device: torch.device, n: int=10) -> torchvision.models.vgg.VGG:
     return vgg16
 
 
-def load_effnet_v2s(device: torch.device, n: int=10) -> torchvision.models.vgg.VGG:
-    """load pretrained VGG16 net for n classes
+def load_effnet_v2s(device: torch.device, n: int=10) -> torchvision.models.efficientnet.EfficientNet:
+    """load pretrained EfficientNet V2 S for n classes
 
     Args:
         device (torch.device): device to store the model
@@ -64,13 +64,13 @@ def load_effnet_v2s(device: torch.device, n: int=10) -> torchvision.models.vgg.V
     log.info(f"Classifier modified to {n} classes")
     effnet.to(device)
     return effnet
-    
-#TODO: add more models
+
 
 def load_modules(params):
     optimizer = torch.optim.Adam(params)
     log.info(f"Loaded optimizer ADAM with default parameters")
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, verbose=True)
+    # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     log.info(f"Loaded LR scheduler")
-    return optimizer, scheduler
+    # log.info(f"Not using a LR scheduler")
+    return optimizer, None

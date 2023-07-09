@@ -73,4 +73,4 @@ def load_modules(params):
     # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     log.info(f"Loaded LR scheduler")
     # log.info(f"Not using a LR scheduler")
-    return optimizer, None
+    return optimizer, scheduler

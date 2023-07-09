@@ -25,7 +25,10 @@ def load_cifar(model_name):
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                        download=True, transform=transform)
     
-    id_path = "params/cifar/undersampled_indices.pt"
+    id_path = "params/cifar"
+    if not os.path.exists(id_path):
+        os.makedirs(id_path)
+    id_path += "/undersampled_indices.pt"
     trainset = undersample_dataset(trainset, id_path)
     log.info("Loaded CIFAR10")
     return trainset, testset
@@ -36,7 +39,10 @@ def load_fashion_mnist():
                                         download=True, transform=transform)
     testset = torchvision.datasets.FashionMNIST(root='./data', train=False,
                                        download=True, transform=transform)
-    id_path = "params/fashion/undersampled_indices.pt"
+    id_path = "params/fashion"
+    if not os.path.exists(id_path):
+        os.makedirs(id_path)
+    id_path += "/undersampled_indices.pt"
     trainset = undersample_dataset(trainset, id_path)
     log.info("Loaded FashionMNIST")
     return trainset, testset
@@ -47,7 +53,10 @@ def load_fast_food():
     trainset = torchvision.datasets.ImageFolder(root='data/FastFoodV2/Train', transform=transform)
     # validset =  torchvision.datasets.ImageFolder(root='data/FastFoodV2/Valid', transform=transform)
     testset = torchvision.datasets.ImageFolder(root='data/FastFoodV2/Test', transform=transform)
-    id_path = "params/food/undersampled_indices.pt"
+    id_path = "params/food"
+    if not os.path.exists(id_path):
+        os.makedirs(id_path)
+    id_path += "/undersampled_indices.pt"
     trainset = undersample_dataset(trainset, id_path)
     log.info("Loaded FastFood V2")
     return trainset, testset

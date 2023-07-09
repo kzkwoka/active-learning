@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List
 import pandas as pd
 import torch
+import logging as log
 
 def get_train_val(trainset: torch.utils.data.Dataset, valid_n: int | float=12.5) -> tuple[List[int], List[int]]:
     """Get indices for train and validations sets for repeating experiments
@@ -44,6 +45,7 @@ def generate_indices(n : int = 5, path : str | Path="", dataset: torch.utils.dat
         train_idx, validation_idx = get_train_val(dataset, valid_n=valid_n)
         train_idx_df[i] = train_idx
         val_idx_df[i] = validation_idx
+    log.info(f"Generated {n} splits - {valid_n}% validation set")
     train_idx_df.to_csv(f"{path}train_idx.csv", index=False)
     val_idx_df.to_csv(f"{path}val_idx.csv", index=False)
     
@@ -64,7 +66,9 @@ def load_indices(path: str | Path="", n : int = 5, dataset: torch.utils.data.Dat
     if not exist:
         generate_indices(path=path, n=n, dataset=dataset, valid_n=valid_n)
     train_idx_df = pd.read_csv(f"{path}train_idx.csv")
+    log.info(f"Training indices read from {path}train_idx.csv")
     val_idx_df = pd.read_csv(f"{path}val_idx.csv")
+    log.info(f"Validation indices read from {path}val_idx.csv")
     return train_idx_df, val_idx_df
 
 def generate_base_dicts(model, optimizer, scheduler, path: str | Path=""):
@@ -75,6 +79,8 @@ def generate_base_dicts(model, optimizer, scheduler, path: str | Path=""):
     torch.save(initial_dict, f"{path}model_dict.pt")
     torch.save(optim_dict, f"{path}optimizer_dict.pt")
     torch.save(sched_dict, f"{path}scheduler_dict.pt")
+    
+    log.info("Generated supporting modules base weights")
 
 def load_base_dicts(model, optimizer, scheduler, path: str | Path=""):
     exist = (os.path.exists(f"{path}model_dict.pt") and 
@@ -85,11 +91,13 @@ def load_base_dicts(model, optimizer, scheduler, path: str | Path=""):
     initial_dict = torch.load(f"{path}model_dict.pt")
     optim_dict = torch.load(f"{path}optimizer_dict.pt")
     sched_dict = torch.load(f"{path}scheduler_dict.pt")
+    log.info("Read supporting modules base weights")
     return initial_dict, optim_dict, sched_dict
 
 def use_base_dicts(model, optimizer, scheduler, initial_dict, optim_dict, sched_dict):
     model.load_state_dict(initial_dict)
     optimizer.load_state_dict(optim_dict)
     scheduler.load_state_dict(sched_dict)
+    log.info("Used supporting modules base weights")
     return model, optimizer, scheduler
 

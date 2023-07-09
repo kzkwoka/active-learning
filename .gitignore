@@ -7,3 +7,7 @@ params/
 */__pychache__/
 src/__pycache__/
 
+imgs/
+IV_results/
+V_results/
+

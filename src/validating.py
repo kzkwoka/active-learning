@@ -1,4 +1,5 @@
 import torch
+import logging as log 
 
 def validate(model, device, dataloader, loss_module):
     model.eval()
@@ -14,6 +15,7 @@ def validate(model, device, dataloader, loss_module):
             val_running_correct += (preds == target).sum().item()
         val_loss = val_running_loss/len(dataloader.dataset)
         val_accuracy = 100. * val_running_correct/len(dataloader.dataset)
+        # val_f1score = 
     return val_loss, val_accuracy
 
 def get_acc_per_class(model, device, testloader, classes):
@@ -38,7 +40,7 @@ def get_acc_per_class(model, device, testloader, classes):
     for classname, correct_count in correct_pred.items():
         accuracy = 100 * float(correct_count) / total_pred[classname]
         all_acc.append(accuracy)
-        print("Accuracy for class {:5s} is: {:.1f} %".format(classname, 
+        log.info("Accuracy for class {:5s} is: {:.1f} %".format(classname, 
                                                        accuracy))
-    print(f"Average accuracy is {sum(all_acc)/len(all_acc)}")
+    log.info(f"Average accuracy is {sum(all_acc)/len(all_acc)}")
     return all_acc

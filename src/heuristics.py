@@ -148,6 +148,43 @@ def score_svm_heuristic(indices, n_samples, model, data, device):
             leftover = np.setdiff1d(indices, chosen, assume_unique=True)
             return chosen, leftover
 
+def knn_svm_heuristic():
+    # class KNNModel(nn.Module):
+    # """
+    #     This is our Nearest Neighbour "neural network".
+    # """
+
+    # def __init__(self, base_data, k=1):
+    #     super(KNNModel, self).__init__()
+    #     self.base_data = base_data.half().cuda()         # We probably have to rewrite this part of the code 
+    #                                                      # as larger datasets may not entirely fit into the GPU memory. maybe downsampling?
+    #     n_data = self.base_data.size(0)
+    #     self.base_data = self.base_data.view(n_data, -1) # Flatten the train data.
+    #     self.base_data_norm = (self.base_data*self.base_data).sum(dim=1)
+    #     self.K = k
+    #     self.norm = 2
+    
+    # def forward(self, x, **kwargs):
+    #     n_samples = x.size(0)
+    #     x = x.data.view(n_samples, -1).half() # flatten to vectors.
+    #     base_data = self.base_data
+    #     base_norm = self.base_data_norm
+    #     ref_size = base_data.size(0)
+
+    #     x_norm = (x*x).sum(dim=1)
+    #     diffs = base_norm.unsqueeze(0).expand(n_samples, ref_size) + x_norm.unsqueeze(1).expand(n_samples, ref_size) - 2*x.matmul(base_data.t())
+    #     diffs.sqrt_().detach_()
+
+    #     output, _ = torch.topk(diffs, self.K, dim=1, largest=False, sorted=True)
+
+    #     return output.float()
+    
+    # def preferred_name(self):
+    #     return '%d-NN'%self.K
+
+    # def output_size(self):
+    #     return torch.LongTensor([1, self.K])
+    pass
 
 def generate_random_sample(indices, n_samples):
     chosen = np.random.choice(indices, n_samples, replace=False)

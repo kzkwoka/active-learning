@@ -4,8 +4,8 @@ import numpy as np
 import logging as log
 from heuristics import generate_heuristic_sample
 from loading_params import use_base_dicts
-from utils import create_weighted_sampler, make_rows
-from validating import get_acc_per_class, get_evaluation_metrics, validate
+from utils import create_weighted_sampler
+from validating import get_evaluation_metrics
 
 from torcheval.metrics.functional import multiclass_accuracy, multiclass_f1_score
 
@@ -29,8 +29,7 @@ def run_learning(net, device, optimizer, scheduler,
         if active_learning: 
             pass
         else:
-            metrics = \
-            base_learn(net, device, optimizer, scheduler, trainset,
+            metrics = base_learn(net, device, optimizer, scheduler, trainset,
                        train_idx_df[i].to_list(), val_idx_df[i].to_list(), test_loader,
                        initial_dict, optim_dict, sched_dict, sub_epochs, i)
             best_metrics.append(metrics)
@@ -70,8 +69,8 @@ def train(model, device, optimizer, scheduler, loss_module, sub_epochs,
     for sub_epoch in range(sub_epochs):
         model.train()  # turn on training mode
         running_loss = 0.0
-        all_preds = torch.Tensor()
-        all_targets = torch.Tensor()
+        all_preds = torch.Tensor().to(device)
+        all_targets = torch.Tensor().to(device)
         for _, data in enumerate(epoch_loader):
             data, target = data[0].to(device), data[1].to(device)
             optimizer.zero_grad()  # zero out the gradients

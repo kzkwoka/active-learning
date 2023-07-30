@@ -6,6 +6,8 @@ import pandas as pd
 import torch
 import logging as log
 
+from heuristics import generate_random_sample
+
 def get_train_val(trainset: torch.utils.data.Dataset, valid_n: int | float=12.5) -> tuple[List[int], List[int]]:
     """Get indices for train and validations sets for repeating experiments
 
@@ -34,23 +36,32 @@ def generate_indices(n : int = 5, path : str | Path="", dataset: torch.utils.dat
     """Generate and save the dataframes with training and validation indices n times.
 
     Args:
-        n (int, optional): number of times for the generatiion to be performed. Defaults to 5.
+        n (int, optional): number of times for the generation to be performed. Defaults to 5.
         path (str | Path, optional): path for the resulting files to be saved at. Defaults to "".
     """    
     if dataset is None:
         raise 
     train_idx_df = pd.DataFrame()
     val_idx_df = pd.DataFrame()
+    labeled_idx_df = pd.DataFrame()
+    unlabeled_idx_df = pd.DataFrame()
     for i in range(n):
         train_idx, validation_idx = get_train_val(dataset, valid_n=valid_n)
         train_idx_df[i] = train_idx
         val_idx_df[i] = validation_idx
-    log.info(f"Generated {n} splits - {valid_n}% validation set")
+        labeled_idx, unlabeled_idx = generate_random_sample(train_idx, int(len(train_idx)*valid_n/100))
+        labeled_idx_df[i] = labeled_idx
+        unlabeled_idx_df[i] = unlabeled_idx
+
+    log.info(f"Generated {n} splits - {valid_n}% validation set - {valid_n}% labeled set")
+    
     train_idx_df.to_csv(f"{path}train_idx.csv", index=False)
     val_idx_df.to_csv(f"{path}val_idx.csv", index=False)
+    labeled_idx_df.to_csv(f"{path}labeled_idx.csv", index=False)
+    unlabeled_idx_df.to_csv(f"{path}unlabeled_idx.csv", index=False)
     
 def load_indices(path: str | Path="", n : int = 5, dataset: torch.utils.data.Dataset | None = None,
-                 valid_n: int | float=12.5) -> tuple[pd.DataFrame, pd.DataFrame]:
+                 valid_n: int | float=12.5) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Load the generated training and validation indices
 
     Args:
@@ -62,14 +73,22 @@ def load_indices(path: str | Path="", n : int = 5, dataset: torch.utils.data.Dat
     Returns:
         tuple[pd.DataFrame, pd.DataFrame]: dataframes with the training and validation indices
     """    
-    exist = os.path.exists(f"{path}train_idx.csv") and os.path.exists(f"{path}train_idx.csv")
+    exist = os.path.exists(f"{path}train_idx.csv") and os.path.exists(f"{path}train_idx.csv") and os.path.exists(f"{path}labeled_idx.csv") and os.path.exists(f"{path}unlabeled_idx.csv") 
     if not exist:
         generate_indices(path=path, n=n, dataset=dataset, valid_n=valid_n)
+
     train_idx_df = pd.read_csv(f"{path}train_idx.csv")
     log.info(f"Training indices read from {path}train_idx.csv")
+    
     val_idx_df = pd.read_csv(f"{path}val_idx.csv")
     log.info(f"Validation indices read from {path}val_idx.csv")
-    return train_idx_df, val_idx_df
+    
+    labeled_idx_df = pd.read_csv(f"{path}labeled_idx.csv")
+    log.info(f"Initially labeled indices read from {path}val_idx.csv")
+    
+    unlabeled_idx_df = pd.read_csv(f"{path}unlabeled_idx.csv")
+    log.info(f"Initially unlabeled indices read from {path}val_idx.csv")
+    return train_idx_df, val_idx_df, labeled_idx_df, unlabeled_idx_df
 
 def generate_base_dicts(model, optimizer, scheduler, path: str | Path=""):
     initial_dict = copy.deepcopy(model.state_dict())

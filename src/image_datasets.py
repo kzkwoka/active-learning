@@ -7,13 +7,15 @@ import logging as log
 
 
 def load_dataset(dataset, model):
-    ["CIFAR10", "FashionMNIST", "FastFoodV2"]
+    ["CIFAR10", "FashionMNIST", "FastFoodV2", "PlantVillage"]
     if dataset == "CIFAR10":
         return load_cifar(model)
     elif dataset == "FashionMNIST":
-        return load_fashion_mnist()
+        return load_fashion_mnist(model)
     elif dataset == "FastFoodV2":
-        return load_fast_food()
+        return load_fast_food(model)
+    elif dataset == "PlantVillage":
+        return load_plant_village(model)
     else:
         raise Exception("Invalid dataset")
 
@@ -33,8 +35,8 @@ def load_cifar(model_name):
     log.info("Loaded CIFAR10")
     return trainset, testset
 
-def load_fashion_mnist():
-    transform = create_transforms(use_repeat=True)
+def load_fashion_mnist(model_name):
+    transform = create_transforms(model_name, use_repeat=True)
     trainset = torchvision.datasets.FashionMNIST(root='./data', train=True,
                                         download=True, transform=transform)
     testset = torchvision.datasets.FashionMNIST(root='./data', train=False,
@@ -47,18 +49,33 @@ def load_fashion_mnist():
     log.info("Loaded FashionMNIST")
     return trainset, testset
 
-def load_fast_food():
-    transform = create_transforms()
+def load_fast_food(model_name):
+    transform = create_transforms(model_name)
     
-    trainset = torchvision.datasets.ImageFolder(root='data/FastFoodV2/Train', transform=transform)
+    trainset = torchvision.datasets.ImageFolder(root='data/Fast Food Classification V2/Train', transform=transform)
     # validset =  torchvision.datasets.ImageFolder(root='data/FastFoodV2/Valid', transform=transform)
-    testset = torchvision.datasets.ImageFolder(root='data/FastFoodV2/Test', transform=transform)
+    testset = torchvision.datasets.ImageFolder(root='data/Fast Food Classification V2/Test', transform=transform)
     id_path = "params/food"
     if not os.path.exists(id_path):
         os.makedirs(id_path)
     id_path += "/undersampled_indices.pt"
     trainset = undersample_dataset(trainset, id_path)
     log.info("Loaded FastFood V2")
+    return trainset, testset
+
+def load_plant_village(model_name):
+    transform = create_transforms(model_name)
+    
+    trainset = torchvision.datasets.ImageFolder(root='data/PlantVillage/dataset/train', transform=transform)
+    # validset =  torchvision.datasets.ImageFolder(root='data/FastFoodV2/Valid', transform=transform)
+    testset = torchvision.datasets.ImageFolder(root='data/PlantVillage/dataset/test', transform=transform)
+    # id_path = "params/food"
+    # if not os.path.exists(id_path):
+    #     os.makedirs(id_path)
+    log.info("Dataset already imbalanced")
+    # id_path += "/undersampled_indices.pt"
+    # trainset = undersample_dataset(trainset, id_path)
+    log.info("Loaded PlantVillage")
     return trainset, testset
 
 def undersample_dataset(dataset, id_path):
@@ -81,7 +98,10 @@ def undersample_dataset(dataset, id_path):
 
     # Set target and data to dataset
     dataset.targets = targets[imbal_class_indices]
-    dataset.data = dataset.data[imbal_class_indices]
+    try:
+        dataset.data = dataset.data[imbal_class_indices]
+    except AttributeError:
+        dataset.samples = [dataset.samples[i] for i in imbal_class_indices]
     return dataset
 
 def load_weights_for_undersampling(n):
@@ -103,6 +123,12 @@ def create_transforms(model_name, use_repeat=False):
                     transforms.CenterCrop(384),
                     transforms.ToTensor(),
                     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+    elif model_name == "OWN":
+        transform = transforms.Compose([
+                    transforms.Resize(256),
+                    transforms.CenterCrop(256),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.25, 0.25, 0.25))])
     else:
         if use_repeat:
             transform = transforms.Compose([

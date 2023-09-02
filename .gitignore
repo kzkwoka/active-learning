@@ -6,8 +6,17 @@ params/
 .vscode/
 */__pychache__/
 src/__pycache__/
+active_learning/__pycache__/
+
 
 imgs/
 IV_results/
 V_results/
+VII_results/
 
+logs/
+
+tests/__pycache__/
+src/test/__pycache__/
+src/charts.ipynb
+active_learning/version.md

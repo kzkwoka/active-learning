@@ -28,7 +28,7 @@ def _get_mc_dropout_entropies(data, indices, model, device):
         heuristic_loader = torch.utils.data.DataLoader(
           torch.utils.data.Subset(data, indices),
           batch_size=64,
-          num_workers=8
+          num_workers=0
         )
         model.eval()
         count = 0
@@ -46,7 +46,7 @@ def _get_mc_dropout_entropies(data, indices, model, device):
                 input = data.repeat(5, 1, 1, 1)
                 preds = model(input).data
                 output = torch.cat((output, preds), 0)
-            average_output = output.view(20, data.size(0), -1).mean(dim=0)
+            average_output = output.view(20, data.size(0), -1).mean(dim=0) 
             probs = torch.softmax(average_output,axis=1)
             entropy = (-probs * probs.log()).sum(dim=1, keepdim=True)
             all_results = np.append(all_results, entropy.cpu().numpy())
@@ -76,12 +76,12 @@ def _get_representative_sampling_distances(data, non_labeled_idx, labeled_idx, d
     unlabeled_loader = torch.utils.data.DataLoader(
           torch.utils.data.Subset(data, non_labeled_idx),
           batch_size=64,
-          num_workers=8
+          num_workers=0
         )
     labeled_loader = torch.utils.data.DataLoader(
           torch.utils.data.Subset(data, labeled_idx),
           batch_size=64,
-          num_workers=8
+          num_workers=0
         )
     unlabeled_centroid = _calculate_centroid(unlabeled_loader, device)
     labeled_centroid = _calculate_centroid(labeled_loader, device)
@@ -94,7 +94,7 @@ def _get_representative_sampling_distances(data, non_labeled_idx, labeled_idx, d
     
     return all_r
 
-def representative_mc_dropout(indices, n_samples, model, data, device,labeled_indices=None):
+def representative_mc_dropout(indices, n_samples, model, data, device, labeled_indices=None):
     distances = _get_representative_sampling_distances(data, indices, labeled_indices, device)
     entropies = _get_mc_dropout_entropies(data, indices, model, device)
     dist_rank = np.argsort(distances).argsort()
@@ -105,51 +105,60 @@ def representative_mc_dropout(indices, n_samples, model, data, device,labeled_in
     leftover = np.setdiff1d(indices, chosen, assume_unique=True)
     return chosen, leftover
     
-def largest_margin(indices, n_samples, model, data, device,labeled_indices=None):
-    if len(indices) <= n_samples:
-        return indices, []
-    with torch.no_grad():
-        heuristic_loader = torch.utils.data.DataLoader(
-          torch.utils.data.Subset(data, indices),
-          batch_size=64,
-          num_workers=8
-        )
-        diff = np.array([])
-        for data in heuristic_loader:
-            data, target = data[0].to(device), data[1].to(device)
-            output = model(data)
-            probs = torch.softmax(output, axis=1)
-            batch_diff = torch.max(probs.data, 1)[0] - torch.min(probs.data, 1)[0]
-            diff = np.append(diff, batch_diff.cpu().numpy())
-        #choose n_samples with smallest ?
-        
-        smallest = np.argpartition(diff, n_samples)[:n_samples]
-        chosen = indices[smallest]
-        leftover = np.setdiff1d(indices, chosen, assume_unique=True)
-        return chosen, leftover
+def largest_margin(indices, n_samples, model, data, device,labeled_indices=None, iter=0):
+    try:
+        if len(indices) <= n_samples:
+            return indices, []
+        with torch.no_grad():
+            heuristic_loader = torch.utils.data.DataLoader(
+            torch.utils.data.Subset(data, indices),
+            batch_size=64,
+            num_workers=0
+            )
+            diff = np.array([])
+            for data in heuristic_loader:
+                data, _ = data[0].to(device), data[1].to(device)
+                output = model(data)
+                probs = torch.softmax(output, axis=1)
+                batch_diff = torch.max(probs.data, 1)[0] - torch.min(probs.data, 1)[0]
+                diff = np.append(diff, batch_diff.cpu().numpy())
+            #choose n_samples with smallest ?
+            
+            smallest = np.argpartition(diff, n_samples)[:n_samples]
+            chosen = [indices[i] for i in smallest]
+            leftover = np.setdiff1d(indices, chosen, assume_unique=True)
+            return chosen, leftover
+    except RuntimeError:
+        if iter < 3:
+            return largest_margin(indices, n_samples, model, data, device,labeled_indices, iter+1)
     
-def smallest_margin(indices, n_samples, model, data, device,labeled_indices=None):
-    if len(indices) <= n_samples:
-        return indices, []
-    with torch.no_grad():
-        heuristic_loader = torch.utils.data.DataLoader(
-          torch.utils.data.Subset(data, indices),
-          batch_size=64,
-          num_workers=8
-        )
-        diff = np.array([])
-        for data in heuristic_loader:
-            data, target = data[0].to(device), data[1].to(device)
-            output = model(data)
-            probs = torch.softmax(output, axis=1)
-            top2 = torch.topk(probs.data, 2).values
-            batch_diff = top2[:,0] - top2[:,1]
-            diff = np.append(diff, batch_diff.cpu().numpy())
-        #choose n_samples with smallest ?
-        smallest = np.argpartition(diff, n_samples)[:n_samples]
-        chosen = indices[smallest]
-        leftover = np.setdiff1d(indices, chosen, assume_unique=True)
-        return chosen, leftover
+def smallest_margin(indices, n_samples, model, data, device,labeled_indices=None, iter=0):
+    try:
+        if len(indices) <= n_samples:
+            return indices, []
+        with torch.no_grad():
+            heuristic_loader = torch.utils.data.DataLoader(
+            torch.utils.data.Subset(data, indices),
+            batch_size=64,
+            num_workers=0
+            )
+            diff = np.array([])
+            for data in heuristic_loader:
+                data = data[0].to(device)
+                output = model(data)
+                probs = torch.softmax(output, axis=1)
+                top2 = torch.topk(probs.data, 2).values
+                batch_diff = top2[:,0] - top2[:,1]
+                diff = np.append(diff, batch_diff.cpu().numpy())
+            #choose n_samples with smallest ?
+            smallest = np.argpartition(diff, n_samples)[:n_samples]
+            chosen = [indices[i] for i in smallest]
+            leftover = np.setdiff1d(indices, chosen, assume_unique=True)
+            return chosen, leftover
+    except RuntimeError:
+        if iter < 3:
+            return smallest_margin(indices, n_samples, model, data, device,labeled_indices, iter+1)
+    
     
 def least_confidence(indices, n_samples, model, data, device,labeled_indices=None):
     if len(indices) <= n_samples:
@@ -162,14 +171,15 @@ def least_confidence(indices, n_samples, model, data, device,labeled_indices=Non
         )
         max_probs = np.array([])
         for data in heuristic_loader:
-            data, target = data[0].to(device), data[1].to(device)
+            data = data[0].to(device)
             output = model(data)
             probs = torch.softmax(output, axis=1)
-            max_prob = torch.max(output.data, 1)[0]
+            max_prob = torch.max(probs, 1)[0]
+            # max_prob = torch.max(output.data, 1)[0]
             max_probs = np.append(max_probs, max_prob.cpu().numpy())
         #choose n_samples with smallest ?
         smallest = np.argpartition(max_probs, n_samples)[:n_samples]
-        chosen = indices[smallest]
+        chosen = [indices[i] for i in smallest]
         leftover = np.setdiff1d(indices, chosen, assume_unique=True)
         return chosen, leftover
 

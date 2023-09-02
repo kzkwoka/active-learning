@@ -29,26 +29,30 @@ def get_evaluation_metrics(model, device, validation_loader, test_loader, loss_m
     # metrics = dict((name, eval(name)) for name in metric_names)
     return metrics
 
-def validate(model, device, dataloader, loss_module, per_class=False):
-    running_loss = 0.0
-    all_preds = torch.Tensor().to(device)
-    all_targets = torch.Tensor().to(device)
-    with torch.no_grad():
-        for _, data in enumerate(dataloader):
-            data, target = data[0].to(device), data[1].to(device)
-            output = model(data)
-            loss = loss_module(output, target)
-            running_loss += loss.item()
-            _, preds = torch.max(output.data, 1)
-            all_preds = torch.cat((all_preds, preds), -1)
-            all_targets = torch.cat((all_targets, target), -1)
-        loss = running_loss/all_targets.shape[0]
-        accuracy = multiclass_accuracy(all_preds, all_targets) # global
-        f1_score = multiclass_f1_score(all_preds, all_targets) # global
-        if not per_class:
-            return loss, accuracy, f1_score
-        else:
-            accuracy_per_class = multiclass_accuracy(all_preds.to(torch.int64), all_targets.to(torch.int64), num_classes=len(dataloader.dataset.classes), average=None) # per class
-            f1_score_per_class = multiclass_f1_score(all_preds.to(torch.int64), all_targets.to(torch.int64), num_classes=len(dataloader.dataset.classes), average=None) # per class
-            f1_score_weighted = multiclass_f1_score(all_preds.to(torch.int64), all_targets.to(torch.int64), num_classes=len(dataloader.dataset.classes), average='weighted') # weighted sum
-            return loss, accuracy, f1_score, accuracy_per_class, f1_score_per_class, f1_score_weighted
+def validate(model, device, dataloader, loss_module, per_class=False, iter=0):
+    try:
+        running_loss = 0.0
+        all_preds = torch.Tensor().to(device)
+        all_targets = torch.Tensor().to(device)
+        with torch.no_grad():
+            for _, data in enumerate(dataloader):
+                data, target = data[0].to(device), data[1].to(device)
+                output = model(data)
+                loss = loss_module(output, target)
+                running_loss += loss.item()
+                _, preds = torch.max(output.data, 1)
+                all_preds = torch.cat((all_preds, preds), -1)
+                all_targets = torch.cat((all_targets, target), -1)
+            loss = running_loss/all_targets.shape[0]
+            accuracy = multiclass_accuracy(all_preds, all_targets) # global
+            f1_score = multiclass_f1_score(all_preds, all_targets) # global
+            if not per_class:
+                return loss, accuracy, f1_score
+            else:
+                accuracy_per_class = multiclass_accuracy(all_preds.to(torch.int64), all_targets.to(torch.int64), num_classes=len(dataloader.dataset.classes), average=None) # per class
+                f1_score_per_class = multiclass_f1_score(all_preds.to(torch.int64), all_targets.to(torch.int64), num_classes=len(dataloader.dataset.classes), average=None) # per class
+                f1_score_weighted = multiclass_f1_score(all_preds.to(torch.int64), all_targets.to(torch.int64), num_classes=len(dataloader.dataset.classes), average='weighted') # weighted sum
+                return loss, accuracy, f1_score, accuracy_per_class, f1_score_per_class, f1_score_weighted
+    except RuntimeError:
+        if iter < 3:
+            return validate(model, device, dataloader, loss_module, per_class, iter+1)

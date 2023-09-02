@@ -3,7 +3,7 @@ import torch
 
 
 def create_weighted_sampler(epoch_subset):
-    targets = epoch_subset.dataset.targets[np.hstack(epoch_subset.indices)]
+    targets = np.array(epoch_subset.dataset.targets)[np.hstack(epoch_subset.indices)]
     class_count = np.unique(targets, return_counts=True)[1]
     weight = 1. / class_count
     samples_weight = weight[targets]

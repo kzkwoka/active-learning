@@ -11,12 +11,12 @@ from validating import get_evaluation_metrics
 from torcheval.metrics.functional import multiclass_accuracy, multiclass_f1_score
 
 TRAIN_BATCH_SIZE = 64
-VALID_BATCH_SIZE = 128
-TEST_BATCH_SIZE = 128
+VALID_BATCH_SIZE = 64
+TEST_BATCH_SIZE = 64
 
 def run_learning(net, device, optimizer, scheduler, 
                  trainset, train_idx_df, val_idx_df, testset, 
-                 initial_dict, optim_dict, sched_dict, epochs=5, sub_epochs=20, active_learning=False, heuristic=None, labeled_idx_df=None, n_batches=20):
+                 initial_dict, optim_dict, sched_dict, epochs=5, sub_epochs=20, active_learning=False, heuristic=None, labeled_idx_df=None, n_batches=20, resume_from=0):
 
     test_loader = torch.utils.data.DataLoader(
         testset,
@@ -25,18 +25,19 @@ def run_learning(net, device, optimizer, scheduler,
     best_metrics = []
     
     for i in range(epochs):
-        i = str(i)
-        log.info(f"Starting experiment {i}")
-        if active_learning: 
-            metrics = active_learn(net, device, optimizer, scheduler, trainset,
-                                   train_idx_df[i].to_list(), val_idx_df[i].to_list(), test_loader, 
-                                   labeled_idx_df[i], initial_dict, optim_dict, sched_dict, sub_epochs, i,
-                                   heuristic, n_batches)
-        else:
-            metrics = base_learn(net, device, optimizer, scheduler, trainset,
-                       train_idx_df[i].to_list(), val_idx_df[i].to_list(), test_loader,
-                       initial_dict, optim_dict, sched_dict, sub_epochs, i)
-            best_metrics.append(metrics)
+        if i >= resume_from:
+            i = str(i)
+            log.info(f"Starting experiment {i}")
+            if active_learning: 
+                metrics = active_learn(net, device, optimizer, scheduler, trainset,
+                                    train_idx_df[i].to_list(), val_idx_df[i].to_list(), test_loader, 
+                                    labeled_idx_df[i], initial_dict, optim_dict, sched_dict, sub_epochs, i,
+                                    heuristic, n_batches)
+            else:
+                metrics = base_learn(net, device, optimizer, scheduler, trainset,
+                        train_idx_df[i].to_list(), val_idx_df[i].to_list(), test_loader,
+                        initial_dict, optim_dict, sched_dict, sub_epochs, i)
+                best_metrics.append(metrics)
     
     return best_metrics
 
@@ -90,13 +91,13 @@ def train_active(model, device, optimizer, scheduler, loss_module, sub_epochs,
         if metrics["validation_accuracy"] > best_metrics["validation_accuracy"]:
             log.info(f"Saving best model with val_acc: {metrics['validation_accuracy']}")
             
-            if not os.path.exists( f'logs/{experiment_id}'):
-                os.makedirs( f'logs/{experiment_id}')
+            # if not os.path.exists( f'logs/{experiment_id}'):
+            #     os.makedirs( f'logs/{experiment_id}')
 
-            if heuristic is not None:
-                torch.save(model.state_dict(), f'logs/{experiment_id}/epoch{epoch}_{heuristic}.pt')
-            else:
-                torch.save(model.state_dict(), f'logs/{experiment_id}/epoch{epoch}_random.pt')
+            # if heuristic is not None:
+            #     torch.save(model.state_dict(), f'logs/{experiment_id}/epoch{epoch}_{heuristic}.pt')
+            # else:
+            #     torch.save(model.state_dict(), f'logs/{experiment_id}/epoch{epoch}_random.pt')
                 
             best_metrics = metrics
     return metrics

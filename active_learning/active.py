@@ -7,6 +7,8 @@ import torch
 # import torch.nn as nn
 from typing import Any, Dict, List, NamedTuple, Optional
 
+import typer
+
 from active_learning import PARAM_ERROR, SUCCESS, MODEL_ERROR, DATASET_ERROR, DEVICE_ERROR
 from active_learning.cli import _register
 from active_learning.utils import generate_heuristic_sample, get_train_val, create_weighted_sampler, filter_dict, train_epoch
@@ -82,8 +84,10 @@ class ActiveLearningHandler:
         for param in self.net.features.parameters():
             param.requires_grad = False
         input_lastLayer = self.net.classifier[1].in_features
-        self.net.classifier[1] = torch.nn.Linear(input_lastLayer,self.al_iter.classes)
-        
+        if self.al_iter.classes:
+            self.net.classifier[1] = torch.nn.Linear(input_lastLayer,self.al_iter.classes)
+        else:
+            return PARAM_ERROR
         self.net = self.net.to(self.device)
         return SUCCESS
 
@@ -112,13 +116,11 @@ class ActiveLearningHandler:
                         "val":validation_idx
                         }, dest.parent.joinpath("indices.pt"))
                 else:
-                    checkpoint = torch.load(Path(self.al_iter.checkpoint_path).join("indices.pt"))
+                    checkpoint = torch.load(Path(self.al_iter.checkpoint_path.replace("epoch-nn.pth","indices.pt")))
                     train_idx, validation_idx = checkpoint["train"], checkpoint["val"]
-                    pass
                 self.trainset, self.valset = torch.utils.data.Subset(self.labeled_dataset, train_idx),torch.utils.data.Subset(self.labeled_dataset, validation_idx)
                 if not self.al_iter.classes:
                     self.al_iter = self.al_iter._replace(classes=len(self.labeled_dataset.classes))
-                    #TODO: register as param 
                     _register([f"classes={self.al_iter.classes}"])
                 elif self.al_iter.classes != len(self.labeled_dataset.classes):
                     return PARAM_ERROR
@@ -155,7 +157,6 @@ class ActiveLearningHandler:
         if hasattr(self, "unlabeled_dataset"):
             self.unlabeled_loader = torch.utils.data.DataLoader(
                 self.unlabeled_dataset, batch_size=self.al_iter.batch_size.get("unlab", self.al_iter.batch_size.get("train")), num_workers=self.al_iter.num_workers)
-        #TODO: check error and add try except
         return SUCCESS
 
     def checkpoint(self, epoch):
@@ -165,27 +166,28 @@ class ActiveLearningHandler:
             'model': self.net.state_dict(),
             'scheduler': self.scheduler.state_dict() if self.scheduler else None
         }, self.al_iter.checkpoint_path.replace("nn",str(epoch)))
-        #TODO: check error and add try except
     
     def resume(self, epoch):
         checkpoint = torch.load(self.al_iter.checkpoint_path.replace("nn",str(epoch)))
         self.net.load_state_dict(checkpoint['model'])
         if epoch != "final":
             self.optimizer.load_state_dict(checkpoint['optimizer'])
-            self.scheduler.load_state_dict(checkpoint['scheduler']) #TODO: check error and add try except
+            self.scheduler.load_state_dict(checkpoint['scheduler'])
         return SUCCESS
     
     def run_training(self, resume_epoch, cont) -> int:
         if resume_epoch > 0:
-            self.resume(resume_epoch)
+            self.resume(resume_epoch-1)
         elif cont:
             self.resume("final")
-    
-        for epoch in range(resume_epoch, self.al_iter.epochs):
-            train_epoch(self.net, self.device, self.optimizer, self.scheduler, self.loss, self.train_loader, self.val_loader)
-            if (epoch + 1) % self.al_iter.checkpoint_every == 0:
-                self.checkpoint(epoch)
-            #TODO: check error and add try except
+            resume_epoch += 1
+
+        with typer.progressbar(range(resume_epoch-1, self.al_iter.epochs), label="Training") as progress:
+            for epoch in progress:
+                log_str = train_epoch(self.net, self.device, self.optimizer, self.scheduler, self.loss, self.train_loader, self.val_loader)
+                # typer.echo(log_str)
+                if (epoch + 1) % self.al_iter.checkpoint_every == 0:
+                    self.checkpoint(epoch)
         self.checkpoint("final")
         return SUCCESS
     
@@ -204,20 +206,23 @@ class ActiveLearningHandler:
             self.chosen = [Path(p) for p, _ in self.chosen]
         dirmade = False
         i = 1
-        while not dirmade:
-            try: 
-                Path(self.al_iter.to_annotate).mkdir(parents=True, exist_ok=False)
-            except FileExistsError:
-                self.al_iter.to_annotate = self.al_iter.to_annotate + f"({i})"
+        if self.al_iter.to_annotate:
+            while not dirmade:
+                try: 
+                    Path(self.al_iter.to_annotate).mkdir(parents=True, exist_ok=False)
+                except FileExistsError:
+                    self.al_iter.to_annotate = self.al_iter.to_annotate + f"({i})"
+                else:
+                    dirmade = True
+            if self.al_iter.copy:
+                for f in self.chosen:
+                    shutil.copy2(f, Path(self.al_iter.to_annotate).joinpath(f.name))
             else:
-                dirmade = True
-        if self.al_iter.copy:
-            for f in self.chosen:
-                shutil.copy2(f, Path(self.al_iter.to_annotate).joinpath(f.name))
+                for f in self.chosen:
+                    shutil.move(f, Path(self.al_iter.to_annotate).joinpath(f.name))
+            return SUCCESS
         else:
-            for f in self.chosen:
-                shutil.move(f, Path(self.al_iter.to_annotate).joinpath(f.name))
-        return SUCCESS
+            return PARAM_ERROR
     
     def train(self, resume_epoch, cont) -> int:
         steps = [

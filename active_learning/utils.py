@@ -53,11 +53,11 @@ def train_epoch(model, device, optimizer, scheduler, loss_module, epoch_loader, 
         optimizer.step()  # optimize
     model.eval()
     
-    metrics = get_evaluation_metrics(model, device, val_loader, loss_module, running_loss, all_preds, all_targets)
+    metrics, log_str = get_evaluation_metrics(model, device, val_loader, loss_module, running_loss, all_preds, all_targets)
     
     if scheduler:
         scheduler.step(metrics["validation_loss"])
-    return metrics
+    return log_str
 
 def get_evaluation_metrics(model, device, loader, loss_module, training_loss, preds, targets):
     training_loss = training_loss/targets.shape[0]
@@ -68,14 +68,14 @@ def get_evaluation_metrics(model, device, loader, loss_module, training_loss, pr
     
     log_str = f"Train acc: {training_accuracy:.3f} train loss: {training_loss:.4f} train f1: {training_f1_score:.4f} "\
                 f"val acc: {validation_accuracy:.3f} val loss: {validation_loss:.4f} val f1: {validation_f1_score:.4f}"
-    print(log_str)
+    # print(log_str)
     metric_names = ["training_loss", "training_accuracy", "training_f1_score", 
                         "validation_accuracy", "validation_loss", "validation_f1_score", 
                     ]
     metrics = {}
     for name in metric_names:
         metrics[name] = eval(name)
-    return metrics
+    return metrics, log_str
 
 def validate(model, device, dataloader, loss_module, per_class=False, iter=0):
     try:
@@ -119,7 +119,8 @@ def generate_heuristic_sample(loader, n_samples, model, device, heuristic=None):
         return eval(heuristic)(loader, n_samples, model, device)
     
 def generate_random_sample(indices, n_samples):
-    chosen = np.random.choice(indices, n_samples, replace=False)
+    chosen_idx = np.random.choice([i for i, _ in enumerate(indices)], n_samples, replace=False)
+    chosen = [indices[i] for i in chosen_idx]
     leftover = np.setdiff1d(indices, chosen, assume_unique=True)
     return chosen, leftover
 

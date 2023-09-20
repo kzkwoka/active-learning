@@ -62,15 +62,16 @@ def train(
     labeled: str = typer.Option(None, "--path", "-p", help="Path to the labeled dataset for training")
 ) -> None:
     """Start or continue training the model used for choosing the subset of data"""
-    try:
-        al_handler = get_active_learning_handler()
-        if labeled:
-            al_handler.al_iter.unlabeled_dataset = labeled
-        if resume > 0 and cont:
-            result = PARAM_ERROR
-        result = al_handler.train(resume, cont)
-    except json.decoder.JSONDecodeError:
+    if resume > 0 and cont:
         result = PARAM_ERROR
+    else:
+        try:
+            al_handler = get_active_learning_handler()
+            if labeled:
+                al_handler.al_iter = al_handler.al_iter._replace(labeled_dataset=labeled)
+            result = al_handler.train(resume, cont)
+        except json.decoder.JSONDecodeError:
+            result = PARAM_ERROR
 
     if result != SUCCESS:
         typer.secho(
@@ -79,7 +80,7 @@ def train(
         raise typer.Exit(1)
     else:
         typer.secho(
-            f"""Iteration run from {'beggining' if resume == 0 else 'epoch ' + str(resume) }""",
+            f"""Iteration run from {'beggining' if resume == 0 else 'epoch ' + str(resume-1) }""",
             fg=typer.colors.GREEN,
         )
 
@@ -92,7 +93,7 @@ def generate(
     out_path: str = typer.Option(None, "--outpath", "-o", help="Path to the folder where sampled images will be moved (or copied) to"),
     copy: bool = typer.Option(False, "--copy", "-c", help="Copy the sampled images. By default they are moved"), 
 ) -> None:
-    """Start or continue training the model used for choosing the subset of data"""
+    """Generate a subset of unlabeled data"""
     if random:
         typer.secho(
             f"Random selection chosen. No heuristic used." ,
@@ -101,9 +102,9 @@ def generate(
     try:
         al_handler = get_active_learning_handler()
         if unlabeled:
-            al_handler.al_iter.unlabeled_dataset = unlabeled
+            al_handler.al_iter = al_handler.al_iter._replace(unlabeled_dataset = unlabeled)
         if out_path:
-            al_handler.al_iter.to_annotate = out_path
+            al_handler.al_iter = al_handler.al_iter._replace(to_annotate = out_path)
         al_handler.al_iter = al_handler.al_iter._replace(copy=copy)
         result = al_handler.generate(fast, random, quantity)
     except json.decoder.JSONDecodeError:
@@ -111,7 +112,7 @@ def generate(
 
     if result != SUCCESS:
         typer.secho(
-            f'Running iteration failed with "{ERRORS[result]}"', fg=typer.colors.RED
+            f'Generating failed with "{ERRORS[result]}"', fg=typer.colors.RED
         )
         raise typer.Exit(1)
     else:

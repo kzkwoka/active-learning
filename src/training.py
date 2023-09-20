@@ -144,7 +144,6 @@ def active_learn(model, device, optimizer, scheduler,
     log.info(f"Loaded Cross Entropy Loss")
     
     for epoch in range(n_batches):
-        #TODO: consider resetting the nn here 
         log.info(f"Epoch: {epoch}")
         if epoch == 0:
             batch_idx = initial_train_idx # equivalent to first (labeled) dataset

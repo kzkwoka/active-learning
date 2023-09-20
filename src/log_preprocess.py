@@ -6,7 +6,7 @@ def read_values(path, n_exp=5, n_active_iter=10, n_epoch=20, n_classes=10,active
     with open(path,mode='r') as log_file:
         lines = log_file.readlines()
         pattern = re.compile("^(.*?)Sub epoch (\d+) train acc: (0.\d{3}) train loss: (\d{1,3}.\d{4}) train f1: (\d.\d{4}) val acc: (0.\d{3}) val loss: (\d{1,3}.\d{4}) val f1: (\d.\d{4}) test acc: (0.\d{3}) test loss: (\d{1,3}.\d{4}) test f1: (\d.\d{4})|^(.*?)Weighted f1: (0.\d{4})")
-        pattern_perclass = re.compile("^(.*?)Class: ([a-zA-Z\s]+)(\s)*test accuracy: (0.\d{3}) test f1: (0.\d{4})")
+        pattern_perclass = re.compile("^(.*?)Class: ([a-zA-Z\_]+)(\s)*test accuracy: (\d.\d{3}) test f1: (\d.\d{4})")
         values, values_perclass = [], []
         for line in lines:
             m = pattern.match(line)
@@ -84,53 +84,13 @@ def save_base(file_path: str, n_exp=5, n_active_iter=1, n_epoch=20, n_classes=10
     df_perclass.to_csv(file_path.replace(".log", "_base_perclass.csv"), index=False)
     
 if __name__ == "__main__":
-    # df, df_perclass = read_values('logs/EFFNETV2S_CIFAR10_cleaned.log')
-    # create_plots(df, "EFFNETV2S_CIFAR10")
-    # create_perclass_plots(df_perclass, "EFFNETV2S_CIFAR10")
-    # df, df_perclass = read_values('logs/EFFNETV2S_CIFAR10_representative_sampling.log')
-    # df.to_csv('logs/EFFNETV2S_CIFAR10_representative_sampling.csv', index=False)
-    # df_perclass.to_csv('logs/EFFNETV2S_CIFAR10_representative_sampling_perclass.csv', index=False)
-    
-    # df, df_perclass = read_values('logs/EFFNETV2S_CIFAR10_None.log')
-    # df.to_csv('logs/EFFNETV2S_CIFAR10_None.csv', index=False)
-    # df_perclass.to_csv('logs/EFFNETV2S_CIFAR10_None_perclass.csv', index=False)
-    
-    # df, df_perclass = read_values('logs/EFFNETV2S_CIFAR10_largest_margin_extended.log')
-    # df.to_csv('logs/EFFNETV2S_CIFAR10_largest_margin_extended.csv', index=False)
-    # df_perclass.to_csv('logs/EFFNETV2S_CIFAR10_largest_margin_extended_perclass.csv', index=False)
-    
-    # df, df_perclass = read_values('logs/EFFNETV2S_CIFAR10_representative_mc_dropout_extended.log')
-    # df.to_csv('logs/EFFNETV2S_CIFAR10_representative_mc_dropout_extended.csv', index=False)
-    # df_perclass.to_csv('logs/EFFNETV2S_CIFAR10_representative_mc_dropout_extended.csv', index=False)
-    
-   
-    # save_base('logs/OWN_FastFoodV2.log', n_epoch=10)
-    # files = [
-    #     "logs/OWN_FastFoodV2_None.log",
-    #     "logs/OWN_FastFoodV2_largest_margin.log",
-    #     "logs/OWN_FastFoodV2_smallest_margin.log",
-    #     "logs/OWN_FastFoodV2_least_confidence.log",
-    #     "logs/OWN_FastFoodV2_representative_mc_dropout.log",
-    #     "logs/OWN_FastFoodV2_representative_sampling.log",
-    #     "logs/OWN_FastFoodV2_mc_dropout.log"       
-           
-    # ]
-    
-    # stack_results(files, n_epoch=10)
-    
-    # 
-    # save_base('logs/EFFNETV2S_PlantVillage.log', n_epoch=30)
+    save_base('logs/EFFNETV2S_PlantVillage.log', n_epoch=30, n_classes=15)
     
     files = [
         "logs/EFFNETV2S_PlantVillage_None.log",
         "logs/EFFNETV2S_PlantVillage_largest_margin.log",
-        # "logs/OWN_FastFoodV2_smallest_margin.log",
-        # "logs/OWN_FastFoodV2_least_confidence.log",
-        # "logs/OWN_FastFoodV2_representative_mc_dropout.log",
-        # "logs/OWN_FastFoodV2_representative_sampling.log",
         "logs/EFFNETV2S_PlantVillage_mc_dropout.log"       
            
     ]
 
-    
-    stack_results(files, n_epoch=15)
+    stack_results(files, n_epoch=15, n_classes=15)

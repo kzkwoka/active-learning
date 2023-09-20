@@ -29,7 +29,7 @@ def run(model, dataset, epochs=5, sub_epochs=30, is_active_learning=False, heuri
     
     return best_metrics
 
-#TODO: run all experiments
+
 
 if __name__ == "__main__":
     models = ["EFFNETV2S","VGG16", "OWN"]
